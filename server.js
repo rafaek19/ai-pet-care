@@ -50,7 +50,7 @@ Respond ONLY with valid JSON (no markdown, no backticks):
         'X-Title': 'Angeles Animal Care Hospital',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.0-flash-lite-001',
+        model: 'google/gemini-2.5-flash-lite',
         messages: [{ role: 'user', content: prompt }],
       }),
     });
