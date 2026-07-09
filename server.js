@@ -9,6 +9,27 @@ const app = express();
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
+// retry helper for gemini calls — retries on 429 (rate limit) with backoff
+async function callgemini(model, body, retries = 2) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generatecontent?key=${process.env.gemini_api_key}`;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const response = await fetch(url, {
+      method: 'post',
+      headers: { 'content-type': 'application/json' },
+      body: json.stringify(body),
+    });
+
+    if (response.status !== 429 || attempt === retries) {
+      return response;
+    }
+
+    const waitms = 1000 * math.pow(2, attempt);
+    console.warn(`gemini 429 rate limit, retrying in ${waitms}ms (attempt ${attempt + 1}/${retries})`);
+    await new promise(r => settimeout(r, waitms));
+  }
+}
+
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
@@ -41,20 +62,17 @@ Respond ONLY with valid JSON (no markdown, no backticks):
 }`;
 
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-        }),
-      }
-    );
+    const response = await callgemini('gemini-2.0-flash-Lite', {
+      contents: [{ parts: [{ text: prompt }] }],
+    });
 
     const data = await response.json();
-    if (!response.ok)
-      return res.status(response.status).json({ error: data?.error?.message || 'Gemini API error' });
+    if (!response.ok) {
+      const msg = response.status === 429
+        ? 'Our AI is receiving a lot of requests right now. Please wait a moment and try again.'
+        : (data?.error?.message || 'Gemini API error');
+      return res.status(response.status).json({ error: msg });
+    }
 
     const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!rawText) return res.status(500).json({ error: 'No response from AI' });
@@ -75,24 +93,21 @@ app.post('/api/chat', async (req, res) => {
     return res.status(500).json({ error: 'Gemini API key not configured' });
 
   try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: `You are a helpful pet care assistant for Angeles Animal Care Hospital.\n\n${question}`,
-            }],
-          }],
-        }),
-      }
-    );
+    const response = await callgemini('gemini-2.0-flash-Lite', {
+      contents: [{
+        parts: [{
+          text: `You are a helpful pet care assistant for Angeles Animal Care Hospital.\n\n${question}`,
+        }],
+      }],
+    });
 
     const data = await response.json();
-    if (!response.ok)
-      return res.status(response.status).json({ error: data?.error?.message || 'Gemini API error' });
+    if (!response.ok) {
+      const msg = response.status === 429
+        ? 'Our AI is receiving a lot of requests right now. Please wait a moment and try again.'
+        : (data?.error?.message || 'Gemini API error');
+      return res.status(response.status).json({ error: msg });
+    }
 
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) return res.status(500).json({ error: 'No response from AI model' });
