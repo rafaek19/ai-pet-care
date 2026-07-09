@@ -11,7 +11,7 @@ app.use(express.json());
 
 // retry helper for gemini calls — retries on 429 (rate limit) with backoff
 async function callgemini(model, body, retries = 2) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generatecontent?key=${process.env.GEMINI_API_KEY}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${process.env.GEMINI_API_KEY}`;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     const response = await fetch(url, {
@@ -66,7 +66,14 @@ Respond ONLY with valid JSON (no markdown, no backticks):
       contents: [{ parts: [{ text: prompt }] }],
     });
 
-    const data = await response.json();
+   const rawBody = await response.text();
+    let data;
+    try {
+      data = JSON.parse(rawBody);
+    } catch {
+      console.error('Non-JSON response from Gemini:', response.status, rawBody);
+      return res.status(502).json({ error: `Gemini returned an unreadable response (status ${response.status})` });
+    }
     if (!response.ok) {
       const msg = response.status === 429
         ? 'Our AI is receiving a lot of requests right now. Please wait a moment and try again.'
@@ -101,7 +108,14 @@ app.post('/api/chat', async (req, res) => {
       }],
     });
 
-    const data = await response.json();
+   const rawBody = await response.text();
+    let data;
+    try {
+      data = JSON.parse(rawBody);
+    } catch {
+      console.error('Non-JSON response from Gemini:', response.status, rawBody);
+      return res.status(502).json({ error: `Gemini returned an unreadable response (status ${response.status})` });
+    }
     if (!response.ok) {
       const msg = response.status === 429
         ? 'Our AI is receiving a lot of requests right now. Please wait a moment and try again.'
