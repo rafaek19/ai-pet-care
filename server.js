@@ -11,22 +11,22 @@ app.use(express.json());
 
 // retry helper for gemini calls — retries on 429 (rate limit) with backoff
 async function callgemini(model, body, retries = 2) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generatecontent?key=${process.env.gemini_api_key}`;
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generatecontent?key=${process.env.GEMINI_API_KEY}`;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     const response = await fetch(url, {
       method: 'post',
       headers: { 'content-type': 'application/json' },
-      body: json.stringify(body),
+      body: JSON.stringify(body),
     });
 
     if (response.status !== 429 || attempt === retries) {
       return response;
     }
 
-    const waitms = 1000 * math.pow(2, attempt);
+    const waitms = 1000 * Math.pow(2, attempt);
     console.warn(`gemini 429 rate limit, retrying in ${waitms}ms (attempt ${attempt + 1}/${retries})`);
-    await new promise(r => settimeout(r, waitms));
+    await new Promise(r => setTimeout(r, waitms));
   }
 }
 
@@ -62,7 +62,7 @@ Respond ONLY with valid JSON (no markdown, no backticks):
 }`;
 
   try {
-    const response = await callgemini('gemini-2.0-flash-Lite', {
+    const response = await callgemini('gemini-2.0-flash-lite', {
       contents: [{ parts: [{ text: prompt }] }],
     });
 
