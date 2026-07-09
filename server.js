@@ -19,8 +19,8 @@ app.post('/api/pre-assess', async (req, res) => {
   if (!symptoms || symptoms.trim().length < 5)
     return res.status(400).json({ error: "Please describe your pet's symptoms." });
 
-  if (!process.env.OPENROUTER_API_KEY)
-    return res.status(500).json({ error: 'OpenRouter API key not configured' });
+  if (!process.env.GEMINI_API_KEY)
+    return res.status(500).json({ error: 'Gemini API key not configured' });
 
   const prompt = `You are a veterinary triage assistant for Angeles Animal Care Hospital.
 
@@ -41,25 +41,22 @@ Respond ONLY with valid JSON (no markdown, no backticks):
 }`;
 
   try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        'HTTP-Referer': 'https://vet-care-hospital.netlify.app',
-        'X-Title': 'Angeles Animal Care Hospital',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash-lite',
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    });
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+        }),
+      }
+    );
 
     const data = await response.json();
     if (!response.ok)
-      return res.status(response.status).json({ error: data?.error?.message || 'API error' });
+      return res.status(response.status).json({ error: data?.error?.message || 'Gemini API error' });
 
-    const rawText = data.choices?.[0]?.message?.content;
+    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!rawText) return res.status(500).json({ error: 'No response from AI' });
 
     const cleaned = rawText.replace(/```json|```/g, '').trim();
@@ -74,32 +71,30 @@ Respond ONLY with valid JSON (no markdown, no backticks):
 app.post('/api/chat', async (req, res) => {
   const { question } = req.body;
   if (!question) return res.status(400).json({ error: 'Question is required' });
-  if (!process.env.OPENROUTER_API_KEY)
-    return res.status(500).json({ error: 'OpenRouter API key not configured' });
+  if (!process.env.GEMINI_API_KEY)
+    return res.status(500).json({ error: 'Gemini API key not configured' });
 
   try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        'HTTP-Referer': 'https://vet-care-hospital.netlify.app',
-        'X-Title': 'Angeles Animal Care Hospital',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: 'You are a helpful pet care assistant for Angeles Animal Care Hospital.' },
-          { role: 'user', content: question },
-        ],
-      }),
-    });
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: `You are a helpful pet care assistant for Angeles Animal Care Hospital.\n\n${question}`,
+            }],
+          }],
+        }),
+      }
+    );
 
     const data = await response.json();
     if (!response.ok)
-      return res.status(response.status).json({ error: data?.error?.message || 'API error' });
+      return res.status(response.status).json({ error: data?.error?.message || 'Gemini API error' });
 
-    const text = data.choices?.[0]?.message?.content;
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) return res.status(500).json({ error: 'No response from AI model' });
 
     res.json({ content: [{ text }] });
