@@ -62,7 +62,7 @@ Respond ONLY with valid JSON (no markdown, no backticks):
 }`;
 
   try {
-     const response = await callgemini('gemini-2.5-flash-lite', {
+     const response = await callgemini('gemini-3.1-flash-lite', {
       contents: [{ parts: [{ text: prompt }] }],
     });
 
@@ -100,7 +100,7 @@ app.post('/api/chat', async (req, res) => {
     return res.status(500).json({ error: 'Gemini API key not configured' });
 
   try {
-     const response = await callgemini('gemini-2.5-flash-lite', {
+     const response = await callgemini('gemini-3.1-flash-lite', {
       contents: [{
         parts: [{
           text: `You are a helpful pet care assistant for Angeles Animal Care Hospital.\n\n${question}`,
